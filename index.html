@@ -3,134 +3,233 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI-Based Emotion Recognition | Team Binary Minds</title>
+  <title>AI-Based Emotion Recognition</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; text-align: center; }
-    .header { max-width: 900px; margin: 0 auto 20px; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0b1320;
+      color: #f8fafc;
+      padding: 24px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    h1, p.sub {
+      text-align: center;
+    }
     h1 { color: #38bdf8; margin-bottom: 6px; }
-    .sub { color: #94a3b8; font-size: 14px; }
-    .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; max-width: 1000px; margin: 0 auto; }
-    .video-box, .panel { background: #1e293b; padding: 16px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
-    .video-wrapper { position: relative; width: 480px; max-width: 100%; }
-    video, canvas { width: 100%; border-radius: 8px; display: block; }
-    canvas { position: absolute; top: 0; left: 0; }
-    .controls { margin-top: 12px; display: flex; gap: 10px; justify-content: center; }
-    button { background: #2563eb; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
-    button:hover { background: #1d4ed8; }
-    button.stop { background: #dc2626; }
-    .panel { width: 340px; text-align: left; }
-    .stat { font-size: 15px; margin: 8px 0; }
-    .bar-row { margin: 8px 0; }
-    .bar-bg { background: #334155; height: 10px; border-radius: 6px; overflow: hidden; }
-    .bar-fill { background: #22c55e; height: 100%; width: 0%; transition: width 0.2s; }
+    p.sub { color: #94a3b8; margin-top: 0; margin-bottom: 24px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 20px;
+    }
+    .card {
+      background: #141e30;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .stage {
+      position: relative;
+      background: #0f172a;
+      border-radius: 10px;
+      min-height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    video, canvas {
+      max-width: 100%;
+      border-radius: 8px;
+      display: none;
+    }
+    .controls {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #startBtn { background: #2563eb; color: #fff; }
+    #stopBtn { background: #dc2626; color: #fff; }
+    #statusMsg {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 13px;
+      color: #fbbf24;
+      min-height: 18px;
+    }
+    .bar-row { margin: 10px 0; }
+    .bar-bg {
+      width: 100%;
+      height: 8px;
+      background: #1e293b;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #38bdf8;
+      transition: width 0.2s ease;
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>AI-Based Emotion Recognition from Facial Expression</h1>
-    <div class="sub">Team Binary Minds (Ananya Parmar &amp; Anik Jain) | Mentor: Dr. Dheeraj Kumar Dixit | MITS Gwalior</div>
-  </div>
-
   <div class="container">
-    <div class="video-box">
-      <div class="video-wrapper">
-        <video id="video" autoplay playsinline muted></video>
-        <canvas id="overlay"></canvas>
-      </div>
-      <div class="controls">
-        <button id="startBtn" onclick="startCamera()">Start Camera</button>
-        <button class="stop" onclick="stopCamera()">Stop Camera</button>
-      </div>
-    </div>
+    <h1>AI-Based Emotion Recognition from Facial Expression</h1>
+    <p class="sub">Team Binary Minds | Mentor: Dr. Dheeraj Kumar Dixit | MITS Gwalior</p>
 
-    <div class="panel">
-      <h3>Real-Time Analytics</h3>
-      <div class="stat"><strong>Detected Emotion:</strong> <span id="topEmotion">Waiting...</span></div>
-      <div class="stat"><strong>Confidence:</strong> <span id="confidence">0%</span></div>
-      <div class="stat"><strong>Inference Latency:</strong> <span id="latency">0 ms</span></div>
-      <hr style="border-color:#334155;" />
-      <div id="bars"></div>
+    <div class="grid">
+      <div class="card">
+        <div class="stage">
+          <video id="video" autoplay playsinline></video>
+          <canvas id="canvas"></canvas>
+        </div>
+        <div class="controls">
+          <button id="startBtn" type="button">Start Camera</button>
+          <button id="stopBtn" type="button">Stop Camera</button>
+        </div>
+        <div id="statusMsg"></div>
+      </div>
+
+      <div class="card">
+        <h3>Real-Time Analytics</h3>
+        <p><strong>Detected Emotion:</strong> <span id="topEmotion">Waiting...</span></p>
+        <p><strong>Confidence:</strong> <span id="topConf">0%</span></p>
+        <p><strong>Inference Latency:</strong> <span id="latency">0 ms</span></p>
+        <hr style="border-color: #26354d;" />
+        <div id="bars"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    const video = document.getElementById("video");
-    const overlay = document.getElementById("overlay");
-    const ctx = overlay.getContext("2d");
-    const captureCanvas = document.createElement("canvas");
-    const captureCtx = captureCanvas.getContext("2d");
-    let stream = null;
-    let timer = null;
-
-    const EMOTIONS = ["Happy", "Sad", "Angry", "Surprised", "Disgust", "Fear", "Neutral"];
-    const barsDiv = document.getElementById("bars");
-    EMOTIONS.forEach(e => {
-      barsDiv.innerHTML += `<div class="bar-row"><small>${e}: <span id="val-${e}">0%</span></small><div class="bar-bg"><div class="bar-fill" id="bar-${e}"></div></div></div>`;
+    const emotions = ["Happy", "Sad", "Angry", "Surprised", "Disgust", "Fear", "Neutral"];
+    const barsContainer = document.getElementById("bars");
+    emotions.forEach((em) => {
+      const row = document.createElement("div");
+      row.className = "bar-row";
+      row.innerHTML = `
+        <div><span id="label-${em}">${em}: 0%</span></div>
+        <div class="bar-bg"><div class="bar-fill" id="bar-${em}"></div></div>
+      `;
+      barsContainer.appendChild(row);
     });
 
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const statusMsg = document.getElementById("statusMsg");
+
+    let stream = null;
+    let timer = null;
+    let busy = false;
+
     async function startCamera() {
+      statusMsg.textContent = "Requesting camera access...";
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("Camera API not supported in this browser/context.");
+        }
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 480, height: 360 },
+          audio: false
+        });
         video.srcObject = stream;
-        video.onloadedmetadata = () => {
-          overlay.width = video.videoWidth;
-          overlay.height = video.videoHeight;
-          captureCanvas.width = video.videoWidth;
-          captureCanvas.height = video.videoHeight;
-          if (timer) clearInterval(timer);
-          timer = setInterval(sendFrame, 350);
-        };
+        await video.play();
+
+        canvas.width = video.videoWidth || 480;
+        canvas.height = video.videoHeight || 360;
+        canvas.style.display = "block";
+        statusMsg.textContent = "Camera active. Analyzing frames...";
+
+        if (timer) clearInterval(timer);
+        timer = setInterval(sendFrame, 450);
       } catch (err) {
-        alert("Camera access denied or unavailable: " + err.message);
+        statusMsg.textContent = "Camera Error: " + err.message;
       }
     }
 
     function stopCamera() {
-      if (timer) clearInterval(timer);
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+      canvas.style.display = "none";
+      statusMsg.textContent = "Camera stopped.";
     }
 
     async function sendFrame() {
-      if (!stream) return;
-      captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-      const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.7);
+      if (busy || !stream) return;
+      busy = true;
       try {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+
         const res = await fetch("/api/predict", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image: dataUrl })
         });
+        if (!res.ok) return;
         const data = await res.json();
-        document.getElementById("latency").innerText = (data.latency_ms || 0) + " ms";
-        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        document.getElementById("latency").textContent = (data.latency_ms ?? 0) + " ms";
 
         if (data.faces && data.faces.length > 0) {
-          const face = data.faces[0];
-          const [x, y, w, h] = face.box;
-          ctx.strokeStyle = "#38bdf8";
+          const f = data.faces[0];
+          const [x, y, w, h] = f.box;
+          ctx.strokeStyle = "#22c55e";
           ctx.lineWidth = 3;
           ctx.strokeRect(x, y, w, h);
-          ctx.fillStyle = "#38bdf8";
-          ctx.font = "bold 16px Arial";
-          ctx.fillText(`${face.emotion} (${Math.round(face.confidence * 100)}%)`, x, Math.max(20, y - 8));
 
-          document.getElementById("topEmotion").innerText = face.emotion;
-          document.getElementById("confidence").innerText = Math.round(face.confidence * 100) + "%";
+          ctx.fillStyle = "#22c55e";
+          ctx.font = "16px Arial";
+          ctx.fillText(`${f.emotion} (${Math.round(f.confidence * 100)}%)`, x, Math.max(20, y - 8));
 
-          EMOTIONS.forEach(e => {
-            const pct = Math.round((face.probabilities[e] || 0) * 100);
-            document.getElementById(`val-${e}`).innerText = pct + "%";
-            document.getElementById(`bar-${e}`).style.width = pct + "%";
-          });
+          document.getElementById("topEmotion").textContent = f.emotion;
+          document.getElementById("topConf").textContent = Math.round(f.confidence * 100) + "%";
+
+          if (f.probabilities) {
+            emotions.forEach((em) => {
+              const pct = Math.round((f.probabilities[em] || 0) * 100);
+              document.getElementById("label-" + em).textContent = `${em}: 0%`.replace("0%", pct + "%");
+              document.getElementById("bar-" + em).style.width = pct + "%";
+            });
+          }
         } else {
-          document.getElementById("topEmotion").innerText = "No face detected";
-          document.getElementById("confidence").innerText = "0%";
+          document.getElementById("topEmotion").textContent = "No face detected";
+          document.getElementById("topConf").textContent = "0%";
         }
-      } catch (err) {
-        console.error(err);
+      } catch (e) {
+        statusMsg.textContent = "Prediction error: " + e.message;
+      } finally {
+        busy = false;
       }
     }
+
+    startBtn.addEventListener("click", startCamera);
+    stopBtn.addEventListener("click", stopCamera);
   </script>
 </body>
 </html>
