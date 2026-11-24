@@ -1,0 +1,97 @@
+import base64
+import time
+import cv2
+import numpy as np
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+
+app = FastAPI(title="AI-Based Emotion Recognition API - Team Binary Minds")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+)
+smile_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_smile.xml"
+)
+
+class FrameRequest(BaseModel):
+    image: str
+
+def estimate_emotions(gray_roi: np.ndarray) -> dict:
+    resized = cv2.resize(gray_roi, (48, 48))
+    mean_intensity = float(np.mean(resized)) / 255.0
+    std_intensity = float(np.std(resized)) / 255.0
+
+    smiles = smile_cascade.detectMultiScale(
+        gray_roi, scaleFactor=1.7, minNeighbors=20, minSize=(20, 20)
+    )
+    has_smile = len(smiles) > 0
+
+    scores = {
+        "Happy": 0.78 if has_smile else 0.10,
+        "Neutral": 0.65 if not has_smile else 0.12,
+        "Surprised": min(0.45, std_intensity * 1.4),
+        "Sad": max(0.05, (1.0 - mean_intensity) * 0.35),
+        "Angry": max(0.04, std_intensity * 0.4),
+        "Fear": 0.04,
+        "Disgust": 0.03,
+    }
+    total = sum(scores.values())
+    return {k: round(v / total, 4) for k, v in scores.items()}
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_frontend():
+    with open("index.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
+@app.get("/health")
+async def health_check():
+    return {"status": "online", "team": "Binary Minds", "institute": "MITS Gwalior"}
+
+@app.post("/api/predict")
+async def predict_emotion(payload: FrameRequest):
+    start_time = time.perf_counter()
+    try:
+        header, encoded = payload.image.split(",", 1) if "," in payload.image else ("", payload.image)
+        img_bytes = base64.b64decode(encoded)
+        np_arr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+        if frame is None:
+            return {"faces": [], "latency_ms": 0.0, "error": "Invalid frame"}
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray_eq = cv2.equalizeHist(gray)
+
+        detected = face_cascade.detectMultiScale(
+            gray_eq, scaleFactor=1.15, minNeighbors=5, minSize=(45, 45)
+        )
+
+        results = []
+        for (x, y, w, h) in detected:
+            roi = gray_eq[y : y + h, x : x + w]
+            probs = estimate_emotions(roi)
+            dominant_emotion = max(probs, key=probs.get)
+            results.append(
+                {
+                    "box": [int(x), int(y), int(w), int(h)],
+                    "emotion": dominant_emotion,
+                    "confidence": probs[dominant_emotion],
+                    "probabilities": probs,
+                }
+            )
+
+        latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
+        return {"faces": results, "latency_ms": latency_ms}
+    except Exception as e:
+        return {"faces": [], "latency_ms": 0.0, "error": str(e)}
