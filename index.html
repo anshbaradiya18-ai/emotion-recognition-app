@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-Based Emotion Recognition | Team Binary Minds</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 20px; text-align: center; }
+    .header { max-width: 900px; margin: 0 auto 20px; }
+    h1 { color: #38bdf8; margin-bottom: 6px; }
+    .sub { color: #94a3b8; font-size: 14px; }
+    .container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; max-width: 1000px; margin: 0 auto; }
+    .video-box, .panel { background: #1e293b; padding: 16px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    .video-wrapper { position: relative; width: 480px; max-width: 100%; }
+    video, canvas { width: 100%; border-radius: 8px; display: block; }
+    canvas { position: absolute; top: 0; left: 0; }
+    .controls { margin-top: 12px; display: flex; gap: 10px; justify-content: center; }
+    button { background: #2563eb; color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    button:hover { background: #1d4ed8; }
+    button.stop { background: #dc2626; }
+    .panel { width: 340px; text-align: left; }
+    .stat { font-size: 15px; margin: 8px 0; }
+    .bar-row { margin: 8px 0; }
+    .bar-bg { background: #334155; height: 10px; border-radius: 6px; overflow: hidden; }
+    .bar-fill { background: #22c55e; height: 100%; width: 0%; transition: width 0.2s; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>AI-Based Emotion Recognition from Facial Expression</h1>
+    <div class="sub">Team Binary Minds (Ananya Parmar &amp; Anik Jain) | Mentor: Dr. Dheeraj Kumar Dixit | MITS Gwalior</div>
+  </div>
+
+  <div class="container">
+    <div class="video-box">
+      <div class="video-wrapper">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <div class="controls">
+        <button id="startBtn" onclick="startCamera()">Start Camera</button>
+        <button class="stop" onclick="stopCamera()">Stop Camera</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Real-Time Analytics</h3>
+      <div class="stat"><strong>Detected Emotion:</strong> <span id="topEmotion">Waiting...</span></div>
+      <div class="stat"><strong>Confidence:</strong> <span id="confidence">0%</span></div>
+      <div class="stat"><strong>Inference Latency:</strong> <span id="latency">0 ms</span></div>
+      <hr style="border-color:#334155;" />
+      <div id="bars"></div>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById("video");
+    const overlay = document.getElementById("overlay");
+    const ctx = overlay.getContext("2d");
+    const captureCanvas = document.createElement("canvas");
+    const captureCtx = captureCanvas.getContext("2d");
+    let stream = null;
+    let timer = null;
+
+    const EMOTIONS = ["Happy", "Sad", "Angry", "Surprised", "Disgust", "Fear", "Neutral"];
+    const barsDiv = document.getElementById("bars");
+    EMOTIONS.forEach(e => {
+      barsDiv.innerHTML += `<div class="bar-row"><small>${e}: <span id="val-${e}">0%</span></small><div class="bar-bg"><div class="bar-fill" id="bar-${e}"></div></div></div>`;
+    });
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          overlay.width = video.videoWidth;
+          overlay.height = video.videoHeight;
+          captureCanvas.width = video.videoWidth;
+          captureCanvas.height = video.videoHeight;
+          if (timer) clearInterval(timer);
+          timer = setInterval(sendFrame, 350);
+        };
+      } catch (err) {
+        alert("Camera access denied or unavailable: " + err.message);
+      }
+    }
+
+    function stopCamera() {
+      if (timer) clearInterval(timer);
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    async function sendFrame() {
+      if (!stream) return;
+      captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+      const dataUrl = captureCanvas.toDataURL("image/jpeg", 0.7);
+      try {
+        const res = await fetch("/api/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: dataUrl })
+        });
+        const data = await res.json();
+        document.getElementById("latency").innerText = (data.latency_ms || 0) + " ms";
+        ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        if (data.faces && data.faces.length > 0) {
+          const face = data.faces[0];
+          const [x, y, w, h] = face.box;
+          ctx.strokeStyle = "#38bdf8";
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x, y, w, h);
+          ctx.fillStyle = "#38bdf8";
+          ctx.font = "bold 16px Arial";
+          ctx.fillText(`${face.emotion} (${Math.round(face.confidence * 100)}%)`, x, Math.max(20, y - 8));
+
+          document.getElementById("topEmotion").innerText = face.emotion;
+          document.getElementById("confidence").innerText = Math.round(face.confidence * 100) + "%";
+
+          EMOTIONS.forEach(e => {
+            const pct = Math.round((face.probabilities[e] || 0) * 100);
+            document.getElementById(`val-${e}`).innerText = pct + "%";
+            document.getElementById(`bar-${e}`).style.width = pct + "%";
+          });
+        } else {
+          document.getElementById("topEmotion").innerText = "No face detected";
+          document.getElementById("confidence").innerText = "0%";
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  </script>
+</body>
+</html>
