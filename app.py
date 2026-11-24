@@ -20,8 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-EMOTIONS = ["Happy", "Sad", "Angry", "Surprised", "Disgust", "Fear", "Neutral"]
-
 face_cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 )
@@ -32,14 +30,12 @@ class PredictRequest(BaseModel):
 
 
 def decode_base64_image(data_url: str) -> np.ndarray:
-    if not data_url:
-        raise ValueError("Empty image payload")
     payload = data_url.split(",", 1)[1] if "," in data_url else data_url
     img_bytes = base64.b64decode(payload)
     arr = np.frombuffer(img_bytes, dtype=np.uint8)
     frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if frame is None:
-        raise ValueError("Unable to decode image frame")
+        raise ValueError("Invalid image frame")
     return frame
 
 
@@ -55,22 +51,14 @@ def estimate_emotions(gray_face: np.ndarray) -> Dict[str, float]:
     lower_bright = float(np.mean(lower))
     upper_bright = float(np.mean(upper))
 
-    smile_score = max(0.05, min(1.0, (lower_bright - upper_bright + 25.0) / 50.0))
-    surprise_score = max(0.05, min(1.0, (contrast - 25.0) / 45.0))
-    anger_score = max(0.05, min(1.0, (upper_bright - lower_bright + 20.0) / 50.0))
-    sad_score = max(0.05, min(1.0, (135.0 - brightness) / 90.0))
-    neutral_score = max(0.20, min(1.0, 1.0 - abs(contrast - 40.0) / 60.0))
-    fear_score = max(0.05, min(0.8, (surprise_score + sad_score) / 2.2))
-    disgust_score = max(0.05, min(0.8, (anger_score + sad_score) / 2.4))
-
     raw_scores = {
-        "Happy": smile_score,
-        "Sad": sad_score,
-        "Angry": anger_score,
-        "Surprised": surprise_score,
-        "Disgust": disgust_score,
-        "Fear": fear_score,
-        "Neutral": neutral_score,
+        "Happy": max(0.05, min(1.0, (lower_bright - upper_bright + 25.0) / 50.0)),
+        "Sad": max(0.05, min(1.0, (135.0 - brightness) / 90.0)),
+        "Angry": max(0.05, min(1.0, (upper_bright - lower_bright + 20.0) / 50.0)),
+        "Surprised": max(0.05, min(1.0, (contrast - 25.0) / 45.0)),
+        "Disgust": max(0.05, min(0.8, ((upper_bright - lower_bright + 20.0) / 50.0 + (135.0 - brightness) / 90.0) / 2.4)),
+        "Fear": max(0.05, min(0.8, (((contrast - 25.0) / 45.0) + ((135.0 - brightness) / 90.0)) / 2.2)),
+        "Neutral": max(0.20, min(1.0, 1.0 - abs(contrast - 40.0) / 60.0)),
     }
     total = sum(raw_scores.values()) or 1.0
     return {k: round(v / total, 4) for k, v in raw_scores.items()}
@@ -78,8 +66,7 @@ def estimate_emotions(gray_face: np.ndarray) -> Dict[str, float]:
 
 @app.get("/")
 def serve_home() -> FileResponse:
-    index_path = Path(__file__).resolve().parent / "index.html"
-    return FileResponse(index_path)
+    return FileResponse(Path(__file__).resolve().parent / "index.html")
 
 
 @app.post("/api/predict")
@@ -109,5 +96,7 @@ def predict_emotion(req: PredictRequest) -> Dict[str, Any]:
             }
         )
 
-    latency_ms = round((time.perf_counter() - start) * 1000.0, 1)
-    return {"faces": detected_faces, "latency_ms": latency_ms}
+    return {
+        "faces": detected_faces,
+        "latency_ms": round((time.perf_counter() - start) * 1000.0, 1),
+    }
